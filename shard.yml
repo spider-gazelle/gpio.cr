@@ -1,0 +1,7 @@
+name: gpio
+version: 1.0.0
+
+authors:
+  - Stephen von Takach <steve@place.tech>
+
+license: MIT
