@@ -1,9 +1,11 @@
 class GPIO::Line
-  def initialize(@chip : Chip, @line : LibGPIOD::Line, @offset : Int32)
-    @to_unsafe = pointerof(@line)
+  def initialize(@chip : Chip, @offset : Int32)
+    @to_unsafe = LibGPIOD.chip_get_line(@chip, @offset)
+    @line = @to_unsafe.value
   end
 
   getter to_unsafe : Pointer(LibGPIOD::Line)
+  @line : LibGPIOD::Line
 
   def to_s(io : IO)
     io << "gpio line"
@@ -13,7 +15,7 @@ class GPIO::Line
   end
 
   def finalize
-    LibGPIOD.line_release(@to_unsafe) if @requested_by_us
+    LibGPIOD.line_release(@to_unsafe)
   end
 
   getter offset : Int32
@@ -100,6 +102,8 @@ class GPIO::Line
     Falling = 2
   end
 
+  @event_fd : IO::FileDescriptor? = nil
+
   def on_input_change(consumer : String = GPIO.default_consumer, & : EventType ->)
     release
     raise "#{self} in use by '#{self.consumer}'" unless is_free?
@@ -115,7 +119,7 @@ class GPIO::Line
     end
 
     line_event = LibGPIOD::LineEvent.new
-    file = IO::FileDescriptor.new(fd)
+    @event_fd = file = IO::FileDescriptor.new(fd)
     loop do
       break if file.closed?
 
@@ -136,6 +140,7 @@ class GPIO::Line
 
   def release
     @requested_by_us = false
+    @event_fd.try(&.close) rescue nil
     LibGPIOD.line_release(self)
     self
   end

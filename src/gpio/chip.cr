@@ -36,20 +36,11 @@ class GPIO::Chip
     String.new(@chip.value.label.to_unsafe)
   end
 
-  protected getter unsafe_lines : Slice(LibGPIOD::Line) do
-    chip = @chip.value
-    chip.lines.to_slice(chip.num_lines)
-  end
-
-  getter lines : Array(Line) do
-    lines = Array(Line).new(unsafe_lines.size)
-    unsafe_lines.each_with_index do |line, idx|
-      lines << Line.new self, line, idx
-    end
-    lines
+  def num_lines
+    @chip.value.num_lines
   end
 
   def line(idx : Int32)
-    lines[idx]
+    Line.new self, idx
   end
 end

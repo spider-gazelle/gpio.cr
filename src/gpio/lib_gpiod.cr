@@ -36,6 +36,9 @@ module GPIO
     fun chip_open_by_name = gpiod_chip_open_by_name(name : LibC::Char*) : Chip*
     fun chip_close = gpiod_chip_close(chip : Chip*)
 
+    # fill the line pointer in the chip struct
+    fun chip_get_line = gpiod_chip_get_line(chip : Chip*, offset : LibC::UInt) : Line*
+
     # returns 0 or 1 if the operation succeeds. On error this routine returns -1
     fun line_get_value = gpiod_line_get_value(line : Line*) : LibC::Int
     # returns 0 or 1 if the operation succeeds. On error this routine returns -1
