@@ -60,11 +60,11 @@ class GPIO::Line
     read == 0
   end
 
-  def is_requested? : Bool
+  def requested? : Bool
     LibGPIOD.line_is_requested(self)
   end
 
-  def is_free? : Bool
+  def free? : Bool
     LibGPIOD.line_is_free(self)
   end
 
@@ -78,7 +78,7 @@ class GPIO::Line
 
   def request_input(consumer : String = GPIO.default_consumer)
     release
-    raise "#{self} in use by '#{self.consumer}'" unless is_free?
+    raise "#{self} in use by '#{self.consumer}'" unless free?
 
     result = LibGPIOD.line_request_input(self, consumer)
     raise "request_input on #{self} failed" unless result.zero?
@@ -88,7 +88,7 @@ class GPIO::Line
 
   def request_output(consumer : String = GPIO.default_consumer)
     release
-    raise "#{self} in use by '#{self.consumer}'" unless is_free?
+    raise "#{self} in use by '#{self.consumer}'" unless free?
 
     result = LibGPIOD.line_request_output(self, consumer)
     raise "request_output on #{self} failed" unless result.zero?
@@ -106,7 +106,7 @@ class GPIO::Line
 
   def on_input_change(consumer : String = GPIO.default_consumer, & : EventType ->)
     release
-    raise "#{self} in use by '#{self.consumer}'" unless is_free?
+    raise "#{self} in use by '#{self.consumer}'" unless free?
 
     result = LibGPIOD.line_request_both_edges_events(self, consumer)
     raise "request_output on #{self} failed" unless result.zero?
