@@ -1,6 +1,6 @@
 class GPIO::Chip
   def self.all
-    Dir.glob("/dev/gpiochip*").sort!.map { |path| new(Path[path]) }
+    Dir.entries("/dev/").select(&.starts_with?("gpio")).sort!.map { |path| new(Path.new("/dev", path)) }
   end
 
   def initialize(path : Path)
