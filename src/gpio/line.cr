@@ -18,6 +18,7 @@ class GPIO::Line
     LibGPIOD.line_release(@to_unsafe)
   end
 
+  getter chip : Chip
   getter offset : Int32
 
   def direction
