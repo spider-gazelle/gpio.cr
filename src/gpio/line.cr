@@ -13,7 +13,9 @@ class GPIO::Line
   end
 
   def initialize(@chip : Chip, @offset : Int32)
-    @ref = Ref.new LibGPIOD.chip_get_line_info(@chip, @offset)
+    line = LibGPIOD.chip_get_line_info(@chip, @offset)
+    raise "failed to obtain line #{@offset} on #{@chip.path}" if line.null?
+    @ref = Ref.new line
   end
 
   def to_unsafe : LibGPIOD::LineInfo

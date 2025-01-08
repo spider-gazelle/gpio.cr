@@ -14,20 +14,20 @@ class GPIO::Chip
     Dir.glob("/dev/gpiochip*").sort!.map { |path| new(Path[path]) }
   end
 
-  def initialize(path : Path)
-    @chip = LibGPIOD.chip_open(path.to_s)
-    @ref = Ref.new(@chip)
-    raise "failed to open chip @ #{path}" if @chip.null?
+  def initialize(@path : Path)
+    chip = LibGPIOD.chip_open(@path.to_s)
+    raise "failed to open chip @ #{@path}" if chip.null?
+    @ref = Ref.new(chip)
   end
 
   def self.new(name : String)
     new Path["/dev", name]
   end
 
-  @chip : LibGPIOD::Chip
+  getter path : Path
 
   def to_unsafe
-    @chip
+    @ref.to_unsafe
   end
 
   def to_s(io : IO)
@@ -36,7 +36,7 @@ class GPIO::Chip
   end
 
   getter chip_info : Chip::Info do
-    Chip::Info.new(LibGPIOD.chip_get_info(@chip))
+    Chip::Info.new(LibGPIOD.chip_get_info(self))
   end
 
   def name
@@ -52,7 +52,7 @@ class GPIO::Chip
   end
 
   def file_descriptor
-    IO::FileDescriptor.new(LibGPIOD.chip_get_fd(@chip), close_on_finalize: false)
+    IO::FileDescriptor.new(LibGPIOD.chip_get_fd(self), close_on_finalize: false)
   end
 
   def line(idx : Int32)
