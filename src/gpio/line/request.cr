@@ -32,10 +32,10 @@ class GPIO::Line::Request
   end
 
   def release
-    @ref.release
     if fd = @fd
       fd.close
     end
+    @ref.release
   end
 
   protected def raise_if_released
