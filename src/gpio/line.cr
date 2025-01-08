@@ -1,21 +1,30 @@
 require "./lib_gpiod"
 
 class GPIO::Line
-  def initialize(@chip : Chip, @offset : Int32)
-    @to_unsafe = LibGPIOD.chip_get_line_info(@chip, @offset)
+  class Ref
+    def initialize(@to_unsafe : LibGPIOD::LineInfo)
+    end
+
+    getter to_unsafe : LibGPIOD::LineInfo
+
+    def finalize
+      LibGPIOD.line_info_free(@to_unsafe)
+    end
   end
 
-  getter to_unsafe : LibGPIOD::LineInfo
+  def initialize(@chip : Chip, @offset : Int32)
+    @ref = Ref.new LibGPIOD.chip_get_line_info(@chip, @offset)
+  end
+
+  def to_unsafe : LibGPIOD::LineInfo
+    @ref.to_unsafe
+  end
 
   def to_s(io : IO)
     io << "gpio line"
     io << offset
     io << ": "
     io << name
-  end
-
-  def finalize
-    LibGPIOD.line_info_free(@to_unsafe)
   end
 
   getter chip : Chip
@@ -55,17 +64,17 @@ class GPIO::Line
     raise "already requested" if @requested_by_us
     @requested_by_us = true
 
-    request = consumer.presence ? Line::RequestConfig.new(consumer) : GPIO.request_config
+    req_config = consumer.presence ? Line::RequestConfig.new(consumer) : GPIO.request_config
 
     config = Line::Config.new
     edge_detection ||= LineEdge::BOTH if direction.input?
     config.add_settings(offset, direction, edge_detection)
     config.output_value(LineValue::INACTIVE) if direction.output?
 
-    request = LibGPIOD.chip_request_lines(@chip, request, config)
-    raise "failed to obtain exclusive access to line" unless request.null?
+    request = LibGPIOD.chip_request_lines(@chip, req_config, config)
+    raise "failed to obtain exclusive access to line #{offset}" unless request.null?
 
-    req = Line::Request.new(chip, self, request)
+    req = Line::Request.new(chip, self, request, req_config, config)
     @request = req
     req
   rescue error

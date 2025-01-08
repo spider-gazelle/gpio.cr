@@ -1,23 +1,40 @@
 class GPIO::Line::Request
-  def initialize(@chip : Chip, @line : Line, request : LibGPIOD::LineRequest)
-    @to_unsafe = request
+  class Ref
+    def initialize(@to_unsafe : LibGPIOD::LineRequest)
+    end
+
+    getter to_unsafe : LibGPIOD::LineRequest
+    getter? released : Bool = false
+
+    def finalize
+      LibGPIOD.line_request_release(@to_unsafe) unless @released
+    end
+
+    def release
+      return if @released
+      @released = true
+      LibGPIOD.line_request_release(@to_unsafe)
+    end
   end
 
-  getter to_unsafe : LibGPIOD::LineRequest
-  @released : Bool = false
+  def initialize(@chip : Chip, @line : Line, request : LibGPIOD::LineRequest, @consumer : Line::RequestConfig, @config : Line::Config)
+    @ref = Ref.new request
+  end
 
-  def finalize
-    LibGPIOD.line_request_release(@to_unsafe) unless @released
+  def to_unsafe
+    @ref.to_unsafe
+  end
+
+  def released?
+    @ref.released?
   end
 
   def release
-    return if @released
-    @released = true
-    LibGPIOD.line_request_release(@to_unsafe)
+    @ref.release
   end
 
   protected def raise_if_released
-    raise "line has already been released" if @released
+    raise "line has already been released" if released?
   end
 
   def set_value(value : LineValue, offset : Int = @line.offset)

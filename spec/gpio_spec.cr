@@ -8,7 +8,7 @@ describe GPIO do
     end
 
     if chip = chips.first?
-      line = chip.line(0)
+      line = chip.line(24)
 
       spawn do
         sleep 2.seconds
