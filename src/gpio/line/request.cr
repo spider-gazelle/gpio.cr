@@ -33,6 +33,7 @@ class GPIO::Line::Request
 
   def release
     if fd = @fd
+      @fd = nil
       fd.close
     end
     @ref.release
@@ -82,9 +83,11 @@ class GPIO::Line::Request
       break if file.closed?
 
       # perform non-blocking reads
-      file.wait_readable
+      file.wait_readable rescue nil
       yield read_edge_event.event_type
     end
+  rescue error
+    raise error unless @fd.nil?
   ensure
     @fd = nil
   end
