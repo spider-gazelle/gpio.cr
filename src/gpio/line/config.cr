@@ -18,7 +18,7 @@ class GPIO::Line::Config
     setting.edge_detection = edge_detection if edge_detection
     success = LibGPIOD.line_config_add_line_settings(self, offsets, offsets.size, setting)
     raise "failed to add settings" unless success.zero?
-    settings << setting
+    @settings << setting
     setting
   end
 

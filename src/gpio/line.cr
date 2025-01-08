@@ -74,7 +74,7 @@ class GPIO::Line
     config.output_value(LineValue::INACTIVE) if direction.output?
 
     request = LibGPIOD.chip_request_lines(chip, req_config, config)
-    raise "failed to obtain exclusive access to line #{offset}" unless request.null?
+    raise "failed to obtain exclusive access to #{chip.name} line #{offset}" if request.null?
 
     req = Line::Request.new(chip, self, request, req_config, config)
     @request = req
