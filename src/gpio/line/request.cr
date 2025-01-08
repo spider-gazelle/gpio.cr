@@ -21,6 +21,8 @@ class GPIO::Line::Request
     @ref = Ref.new request
   end
 
+  @fd : IO::FileDescriptor? = nil
+
   def to_unsafe
     @ref.to_unsafe
   end
@@ -31,6 +33,9 @@ class GPIO::Line::Request
 
   def release
     @ref.release
+    if fd = @fd
+      fd.close
+    end
   end
 
   protected def raise_if_released
@@ -72,6 +77,7 @@ class GPIO::Line::Request
 
   def watch_events(& : EdgeEventType ->)
     file = file_descriptor
+    @fd = file
     loop do
       break if file.closed?
 
@@ -79,5 +85,7 @@ class GPIO::Line::Request
       file.wait_readable
       yield read_edge_event.event_type
     end
+  ensure
+    @fd = nil
   end
 end
