@@ -36,7 +36,7 @@ class GPIO::Chip
   end
 
   getter chip_info : Chip::Info do
-    Chip::Info.new(self, LibGPIOD.chip_get_info(@chip))
+    Chip::Info.new(LibGPIOD.chip_get_info(@chip))
   end
 
   def name

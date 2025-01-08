@@ -1,5 +1,5 @@
 class GPIO::Chip::Info
-  def initialize(@chip : Chip, @info : LibGPIOD::ChipInfo)
+  def initialize(@info : LibGPIOD::ChipInfo)
   end
 
   def to_unsafe
