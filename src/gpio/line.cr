@@ -1,11 +1,11 @@
+require "./lib_gpiod"
+
 class GPIO::Line
   def initialize(@chip : Chip, @offset : Int32)
-    @to_unsafe = LibGPIOD.chip_get_line(@chip, @offset)
-    @line = @to_unsafe.value
+    @to_unsafe = LibGPIOD.chip_get_line_info(@chip, @offset)
   end
 
-  getter to_unsafe : Pointer(LibGPIOD::Line)
-  @line : LibGPIOD::Line
+  getter to_unsafe : LibGPIOD::LineInfo
 
   def to_s(io : IO)
     io << "gpio line"
@@ -15,134 +15,148 @@ class GPIO::Line
   end
 
   def finalize
-    LibGPIOD.line_release(@to_unsafe)
+    LibGPIOD.line_info_free(@to_unsafe)
   end
 
   getter chip : Chip
   getter offset : Int32
+  getter? requested_by_us : Bool = false
+  @request : Line::Request? = nil
+
+  protected def get_request! : Line::Request
+    request = @request
+    raise "input or output mode must be requested" unless request
+    request
+  end
+
+  getter name : String do
+    pointer = LibGPIOD.line_info_get_name(self)
+    pointer.null? ? @offset.to_s : String.new(pointer)
+  end
+
+  def consumer : String?
+    pointer = LibGPIOD.line_info_get_consumer(self)
+    pointer.null? ? nil : String.new(pointer)
+  end
+
+  def in_use? : Bool
+    LibGPIOD.line_info_is_used(self)
+  end
 
   def direction
-    @line.direction
+    LibGPIOD.line_info_get_direction(self)
   end
 
-  getter name do
-    String.new(@line.name.to_unsafe)
+  def edge_detection
+    LibGPIOD.line_info_get_edge_detection(self)
   end
 
-  getter consumer do
-    String.new(@line.consumer.to_unsafe)
+  protected def request_exclusive_access(direction : LineDirection, consumer : String? = nil, edge_detection : LineEdge? = nil)
+    raise "already requested" if @requested_by_us
+    @requested_by_us = true
+
+    request = consumer.presence ? Line::RequestConfig.new(consumer) : GPIO.request_config
+
+    config = Line::Config.new
+    edge_detection ||= LineEdge::BOTH if direction.input?
+    config.add_settings(offset, direction, edge_detection)
+    config.output_value(LineValue::INACTIVE) if direction.output?
+
+    request = LibGPIOD.chip_request_lines(@chip, request, config)
+    raise "failed to obtain exclusive access to line" unless request.null?
+
+    req = Line::Request.new(chip, self, request)
+    @request = req
+    req
+  rescue error
+    @requested_by_us = false
+    raise error
+  end
+
+  def release
+    if (req = @request) && @requested_by_us
+      @requested_by_us = false
+      req.release
+      @request = nil
+    end
+    self
+  end
+
+  def free? : Bool
+    !in_use?
+  end
+
+  def request_input(consumer : String? = nil)
+    release
+    raise "#{self} in use by '#{self.consumer}'" unless free?
+    request_exclusive_access(LineDirection::INPUT, consumer)
+    self
+  end
+
+  def request_output(consumer : String? = nil)
+    release
+    raise "#{self} in use by '#{self.consumer}'" unless free?
+    request_exclusive_access(LineDirection::OUTPUT, consumer)
+    self
+  end
+
+  def requested? : Bool
+    @requested_by_us && @request
   end
 
   def read
-    result = LibGPIOD.line_get_value(self)
-    raise "Reading #{self} failed" if result == -1
+    result = get_request!.get_value
+    raise "Reading #{self} failed" if result.error?
     result
   end
 
-  def write(new_value : Int32)
-    result = LibGPIOD.line_set_value(self, new_value)
-    raise "Writing #{self} failed" if result == -1
+  def write(new_value : LineValue)
+    raise "cannot set line to an error state" if new_value.error?
+    result = get_request!.set_value(new_value)
+    raise "Writing #{self} failed" if result.error?
     result
   end
 
   def set_high
-    write(1)
+    write(LineValue::ACTIVE)
   end
 
   def set_low
-    write(0)
+    write(LineValue::INACTIVE)
   end
 
   def high? : Bool
-    read == 1
+    read.active?
   end
 
   def low? : Bool
-    read == 0
+    read.active?
   end
 
-  def requested? : Bool
-    LibGPIOD.line_is_requested(self)
+  def set_active
+    set_high
   end
 
-  def free? : Bool
-    LibGPIOD.line_is_free(self)
+  def set_inactive
+    set_low
   end
 
-  def consumer : String?
-    chars = LibGPIOD.line_consumer(self)
-    return nil if chars.null?
-    String.new(chars)
+  def active?
+    high?
   end
 
-  getter? requested_by_us : Bool = false
+  def inactive?
+    low?
+  end
 
-  def request_input(consumer : String = GPIO.default_consumer)
+  def on_input_change(consumer : String? = nil, &block : EdgeEventType ->)
     release
     raise "#{self} in use by '#{self.consumer}'" unless free?
-
-    result = LibGPIOD.line_request_input(self, consumer)
-    raise "request_input on #{self} failed" unless result.zero?
-    @requested_by_us = true
-    self
-  end
-
-  def request_output(consumer : String = GPIO.default_consumer)
-    release
-    raise "#{self} in use by '#{self.consumer}'" unless free?
-
-    result = LibGPIOD.line_request_output(self, consumer)
-    raise "request_output on #{self} failed" unless result.zero?
-    @requested_by_us = true
-    self
-  end
-
-  # grab IO events
-  enum EventType
-    Rising  = 1
-    Falling = 2
-  end
-
-  @event_fd : IO::FileDescriptor? = nil
-
-  def on_input_change(consumer : String = GPIO.default_consumer, & : EventType ->)
-    release
-    raise "#{self} in use by '#{self.consumer}'" unless free?
-
-    result = LibGPIOD.line_request_both_edges_events(self, consumer)
-    raise "request_output on #{self} failed" unless result.zero?
-    @requested_by_us = true
-
-    fd = LibGPIOD.line_event_get_fd(self)
-    if fd == -1
-      release
-      raise "unknown issue obtaining file descriptor for #{self}"
-    end
-
-    line_event = LibGPIOD::LineEvent.new
-    @event_fd = file = IO::FileDescriptor.new(fd)
-    loop do
-      break if file.closed?
-
-      # perform non-blocking reads
-      file.wait_readable
-      result = LibGPIOD.line_event_read(self, pointerof(line_event))
-      raise "failed to read line event on #{self}" unless result.zero?
-
-      yield EventType.from_value(line_event.event_type)
-    rescue error : IO::Error
-      raise error if requested_by_us?
-    end
-
-    self
+    request_input(consumer)
+    get_request!.watch_events(&block)
   ensure
     release
   end
-
-  def release
-    @requested_by_us = false
-    @event_fd.try(&.close) rescue nil
-    LibGPIOD.line_release(self)
-    self
-  end
 end
+
+require "./line/*"

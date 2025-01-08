@@ -11,7 +11,7 @@ describe GPIO do
       line = chip.line(0)
 
       spawn do
-        sleep 2
+        sleep 2.seconds
         line.release
       end
 

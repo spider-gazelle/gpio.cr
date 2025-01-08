@@ -8,12 +8,11 @@ class GPIO::Chip
     raise "failed to open chip @ #{path}" if @chip.null?
   end
 
-  def initialize(name : String)
-    @chip = LibGPIOD.chip_open_by_name(name)
-    raise "failed to open chip: #{name}" if @chip.null?
+  def self.new(name : String)
+    new Path["/dev", name]
   end
 
-  @chip : LibGPIOD::Chip*
+  @chip : LibGPIOD::Chip
 
   def to_unsafe
     @chip
@@ -28,19 +27,29 @@ class GPIO::Chip
     io << name
   end
 
-  getter name : String do
-    String.new(@chip.value.name.to_unsafe)
+  getter chip_info : Chip::Info do
+    Chip::Info.new(self, LibGPIOD.chip_get_info(@chip))
   end
 
-  getter label : String do
-    String.new(@chip.value.label.to_unsafe)
+  def name
+    chip_info.name
+  end
+
+  def label
+    chip_info.label
   end
 
   def num_lines
-    @chip.value.num_lines
+    chip_info.num_lines
+  end
+
+  def file_descriptor
+    IO::FileDescriptor.new(LibGPIOD.chip_get_fd(@chip), close_on_finalize: false)
   end
 
   def line(idx : Int32)
     Line.new self, idx
   end
 end
+
+require "./chip/*"

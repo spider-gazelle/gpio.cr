@@ -1,6 +1,8 @@
 # gpio
 
-bindings for linux gpiod, a user space interface for general purpose IO control
+bindings for linux gpiod, a user space interface for general purpose IO control.
+
+NOTE:: libGPIO version 2 was re-written so it could maintain backwards compatibility while introducing new features. Use the 1.x branch for lib version 1.x versions.
 
 ## Installation
 
